@@ -49,6 +49,15 @@ const upload = multer({ storage, fileFilter });
 //API ROUTE FOR UPLOADING SINGLE IMAGE
 router.patch("/api/user/avatar", auth, upload.single("avatars"), async (req, res) => {
     if(req.file){
+        // Deleting the previous avatar image if it exists
+        if(req.user.avatar){
+            gfs.remove({ filename: req.user.avatar , root: 'avatars'}, (err, gridStore)=>{
+                if(err){
+                  return res.status(404).json({err: err});
+                }
+            });
+        }
+        // Attaching the avatar name with user
         try{
             req.user.avatar = req.file.filename;
             await req.user.save();
@@ -65,7 +74,6 @@ router.get("/api/user/avatar",auth, async (req, res) => {
       if (file) {
         let readstream = gfs.createReadStream(file);
         readstream.pipe(res);
-  
       } else {
         res.send({ err: "Image doesn't exist" });
       }
