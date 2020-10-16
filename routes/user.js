@@ -1,25 +1,76 @@
 const express = require('express');
 const User = require('../db/models/user');
-const jwt = require('jsonwebtoken')
+const jwt = require('jsonwebtoken');
+const auth = require('../middlewares/auth');
+const multer = require('multer');
+const Grid = require('gridfs-stream');
+const GridFsStorage = require('multer-gridfs-storage');
+const dbConnString = require('../db/dbConnString');
+const conn = require('../db/mongooseConn');
+const mongoose = require('mongoose');
 
-const router = new express.Router()
+const router = new express.Router();
 
-//AUTHENTICATION MIDDLEWARE
-const auth = async (req, res, next) => {
-    try{
-        const token = req.header('authorization').replace('Bearer ', '');
-        const decoded = jwt.verify(token, 'thisisuserverification');
-        const user = await User.findOne({ _id: decoded._id, 'tokens.token': token });
-        if(!user) {
-            throw new Error('Please Authenticate');
+let gfs;
+
+//USING GRIDFS_STREAM
+conn.once("open", () => {
+  gfs = Grid(conn.db, mongoose.mongo);
+  gfs.collection("avatars");
+});
+
+//CREATING A NEW STORAGE WITH MULTER_GRIDFS_STORAGE
+const storage = new GridFsStorage({
+  url: dbConnString,
+  file: (req, file) => {
+    return {
+      filename: "file_" + Date.now(),
+      bucketName: "avatars",
+    };
+  },
+});
+
+//FUNCTION THAT WILL FILTER ONLY IMAGES
+const fileFilter = (req, file, cb) => {
+  if (
+    file.mimetype === "image/jpeg" ||
+    file.mimetype === "image/png" ||
+    file.mimetype === "image/jpg"
+  ) {
+    cb(null, true);
+  } else {
+    cb(null, false);
+  }
+};
+
+//SETTING UP MULTER CONFIGURATION
+const upload = multer({ storage, fileFilter });
+
+//API ROUTE FOR UPLOADING SINGLE IMAGE
+router.patch("/api/user/avatar", auth, upload.single("avatars"), async (req, res) => {
+    if(req.file){
+        try{
+            req.user.avatar = req.file.filename;
+            await req.user.save();
+            res.status(200).send(req.user);
+        } catch(e){
+            res.send(e);
         }
-        req.user = user;
-        req.token = token;
-        next();
-    } catch(e){
-        res.status(400).send({error: 'Please Authenticate'});
     }
-}
+});
+
+//API ROUTE FOR STREAMING SINGLE IMAGE
+router.get("/api/user/avatar",auth, async (req, res) => {
+    gfs.files.findOne({ filename: req.user.avatar }, (err, file) => {
+      if (file) {
+        let readstream = gfs.createReadStream(file);
+        readstream.pipe(res);
+  
+      } else {
+        res.send({ err: "Image doesn't exist" });
+      }
+    });
+});
 
 //TO REGISTER A NEW USER
 router.post('/api/user', async (req, res)=> {
