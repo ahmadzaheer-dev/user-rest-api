@@ -62,8 +62,8 @@ router.patch("/api/user/avatar", auth, upload.single("avatars"), async (req, res
             req.user.avatar = req.file.filename;
             await req.user.save();
             res.status(200).send(req.user);
-        } catch(e){
-            res.send(e);
+        } catch(err){
+            res.send({ err });
         }
     }
 });
@@ -88,7 +88,7 @@ router.post('/api/user', async (req, res)=> {
         const token = await user.generateAuthToken();
         res.status(201).send({user, token});
     }catch(err){
-        res.status(400).send(err);
+        res.status(400).send({ err });
     }
 });
 
@@ -100,7 +100,7 @@ router.post('/api/user/login', async (req, res)=>{
         res.status(200).send({user, token});
 
     } catch (err){
-        res.status(400).send(err);
+        res.status(400).send({ err });
     }
 })
 
@@ -111,15 +111,15 @@ router.patch('/api/users/me', auth, async (req, res)=>{
     const isAllowed = updates.every((curUpdate)=> allowedUpdates.includes(curUpdate));
     
     if(!isAllowed){
-        res.send('Wrong Update attempt')
+       return res.send({err: 'Wrong Update attempt'})
     }
 
     try{
         updates.forEach((update)=> req.user[update] = req.body[update]);
         await req.user.save();
         res.status(200).send(req.user);
-    } catch(e){
-        res.send(e);
+    } catch(err){
+        res.send({ err });
     }
     
 });
@@ -129,21 +129,21 @@ router.get('/api/users/me', auth, (req, res)=> {
     try{
         res.status(200).send(req.user);   
     } catch(err){
-        res.status(400).send(err)
+        res.status(400).send({ err })
     }
 })
 
 //VIEWING THE INFO OF OTHER USERS
 router.get('/api/user/:id', auth, async (req, res)=> {
     try{
-    const _id = req.params.id;
-    const user = await User.findById(_id);
-    if(!user){
-        throw new Error('User not Found');
-    }
+        const _id = req.params.id;
+        const user = await User.findById(_id);
+        if(!user){
+            throw new Error('User not Found');
+        }
     res.status(200).send(user);
     } catch(err){
-        res.status(400).send("Unable to find User");
+        res.status(400).send({ err: "Unable to find User" });
     }
 })
 
@@ -153,8 +153,8 @@ router.post('/api/user/logout', auth, async (req,res)=>{
         req.user.tokens = req.user.tokens.filter((cur)=> cur.token !== req.token);
         await req.user.save();
         res.status(200).send();
-    } catch(e){
-        res.status(500).send();
+    } catch(err){
+        res.status(500).send({ err });
     }
 })
 
@@ -164,8 +164,8 @@ router.post('/api/user/logoutAll', auth, async(req, res)=>{
         req.user.tokens = [];
         req.user.save();
         res.status(200).send();
-    } catch(e){
-        res.status(500).send();
+    } catch(err){
+        res.status(500).send({ err });
     }
 })
 
